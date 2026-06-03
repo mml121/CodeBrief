@@ -120,26 +120,9 @@ Reviewer Focus Areas:
 
 ---
 
-## GitHub PAT Setup
-
-1. Go to `GitHub → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens`
-2. Click **Generate new token**
-3. Under **Repository access**, select the repos you want CodeBrief to analyse
-4. Under **Permissions**, set:
-   - `Pull requests` → Read and write
-   - `Contents` → Read only
-5. Generate and copy the token into your `.env` file
-
----
-
 ## Models
 
-| Model | Value | Use case |
-|---|---|---|
-| Claude 3.5 Sonnet | `claude-3-5-sonnet` | Production — best quality summaries |
-| Claude 3 Haiku | `claude-3-haiku` | Testing — faster and cheaper |
-
-CodeBrief defaults to `claude-3-haiku`. The model can be changed in `config.py`.
+ **Claude 3.5 Sonnet** : best quality summaries 
 
 ---
 
@@ -170,11 +153,3 @@ code_brief/
 | `--output` | `terminal` | Output mode: `terminal`, `github`, `slack`, `email` |
 | `--dry-run` | `False` | Fetch diff without calling the LLM |
 | `--verbose` | `False` | Show all changed files before analysis |
-
----
-
-## Notes
-
-- CodeBrief uses `tiktoken` to count tokens before sending to the API. Diffs exceeding the token limit are automatically chunked per file.
-- Retries are handled automatically using `tenacity` — up to 3 attempts with exponential backoff.
-- Never commit your `.env` file. It is listed in `.gitignore` by default.
