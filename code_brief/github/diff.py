@@ -1,8 +1,7 @@
-import os
-
 from unidiff import PatchSet
 from code_brief.config import Config
 from github import Github
+
 
 def get_raw_diff(config: Config) -> str:
     client = Github(config.github_token)
@@ -18,8 +17,10 @@ def get_raw_diff(config: Config) -> str:
 
     return diff_text
 
+
 def parse_diff(raw_diff: str) -> PatchSet:
     return PatchSet(raw_diff)
+
 
 def get_changed_files(config: Config) -> list:
     raw = get_raw_diff(config)

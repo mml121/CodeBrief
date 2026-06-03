@@ -4,6 +4,7 @@ from typing import List
 @dataclass
 class Risk:
     severity: str
+    confidence: int
     description: str
 
 @dataclass
