@@ -9,6 +9,7 @@ from code_brief.llm.anthropic import call_claude
 app = typer.Typer()
 console = Console()
 
+
 @app.command()
 def main(
         pr: int = typer.Option(..., "--pr", help="PR number to review"),
@@ -26,11 +27,11 @@ def main(
         files = get_changed_files(config)
 
     console.print(f"[green]✓[/green] Fetched PR: [bold]{pull.title}[/bold]")
-    console.print(f"[green]✓[/green] {len(files)} files changed")
+    console.print(f"[green]✓[/green] {len(files)} files changed · +{pull.additions} lines added · -{pull.deletions} lines removed")
 
     if verbose:
         for f in files:
-            console.print(f"    [dim]{f["filename"]}[/dim] +{f["additions"]} - {f["deletions"]}")
+            console.print(f"    [dim]{f["filename"]}[/dim] +{f["additions"]} -{f["deletions"]}")
 
     if dry_run:
         console.print("\n[yellow]Dry run - skipping LLM call[/yellow]")
@@ -46,7 +47,6 @@ def main(
         for risk in summary.risks:
             colour = "red" if risk.severity == "HIGH" else "yellow" if risk.severity == "MEDIUM" else "blue"
             console.print(f"    [{colour}]{risk.severity}[/{colour}] ({risk.confidence}%) {risk.description}")
-
 
     if summary.focus_areas:
         console.print(f"\n[bold]Reviewer Focus areas:[/bold]")

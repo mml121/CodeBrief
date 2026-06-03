@@ -1,5 +1,6 @@
 import httpx
 import json
+from tenacity import retry, stop_after_attempt, wait_exponential
 from code_brief.config import Config
 from code_brief.models import PRSummary, Risk
 from code_brief.llm.prompt import SYSTEM_PROMPT, build_prompt
@@ -27,7 +28,7 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
         focus_areas=data.get("focus_areas", [])
     )
 
-
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def call_api(config: Config, messages: list) -> str:
     with httpx.Client() as client:
         response = client.post(
