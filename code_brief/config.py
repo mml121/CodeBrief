@@ -4,6 +4,7 @@ import os
 
 load_dotenv()
 
+
 @dataclass
 class Config:
     github_token: str
@@ -12,8 +13,13 @@ class Config:
     repo: str
     pr_number: int
     model: str
+    email_sender: str = ""
+    email_password: str = ""
+    email_smtp_host: str = ""
+    email_smtp_port: int = 465
 
-def load_config(repo: str, pr_number: int, model: str = "claude-3-haiku" ) -> Config:
+
+def load_config(repo: str, pr_number: int, model: str = "claude-3-haiku") -> Config:
     github_token = os.getenv("GITHUB_TOKEN")
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
     anthropic_endpoint = os.getenv("ANTHROPIC_ENDPOINT")
@@ -31,4 +37,8 @@ def load_config(repo: str, pr_number: int, model: str = "claude-3-haiku" ) -> Co
         anthropic_endpoint=anthropic_endpoint,
         repo=repo,
         pr_number=pr_number,
-        model=model)
+        model=model,
+        email_sender=os.getenv("EMAIL_SENDER") or "",
+        email_password=os.getenv("EMAIL_PASSWORD") or "",
+        email_smtp_host=os.getenv("EMAIL_SMTP_HOST") or ""
+    )

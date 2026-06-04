@@ -2,9 +2,12 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from code_brief.config import load_config
+from code_brief.delivery.email import deliver_email
+from code_brief.delivery.github import deliver_github
 from code_brief.github.client import get_pr
 from code_brief.github.diff import get_changed_files
 from code_brief.llm.anthropic import call_claude
+from code_brief.delivery.terminal import deliver_terminal
 
 app = typer.Typer()
 console = Console()
@@ -40,15 +43,14 @@ def main(
     with console.status("[bold green]Analysing diff..."):
         summary = call_claude(config, pr_title=pull.title)
 
-    console.print(f"\n[bold]Summary:[/bold]\n{summary.summary}")
-
-    if summary.risks:
-        console.print(f"\n[bold]Risks:[/bold]")
-        for risk in summary.risks:
-            colour = "red" if risk.severity == "HIGH" else "yellow" if risk.severity == "MEDIUM" else "blue"
-            console.print(f"    [{colour}]{risk.severity}[/{colour}] ({risk.confidence}%) {risk.description}")
-
-    if summary.focus_areas:
-        console.print(f"\n[bold]Reviewer Focus areas:[/bold]")
-        for i, area in enumerate(summary.focus_areas, 1):
-            console.print(f"    {i}. {area}")
+    if output == "terminal":
+        deliver_terminal(summary)
+    elif output == "github":
+        console.print("\n[bold blue]Posting comment to GitHub...[/bold blue]")
+        deliver_github(summary, config)
+        console.print(f"\n[green]✓[/green] Comment posted to PR #{pr}")
+    elif output == "email":
+        email_to = typer.prompt("Recipient email address")
+        console.print("\n[bold green]Sending email...[/bold green]")
+        deliver_email(summary, config, recipient=email_to)
+        console.print(f"[green]✓[/green] Email sent to {email_to}")
