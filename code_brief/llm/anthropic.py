@@ -1,6 +1,6 @@
 import httpx
 import json
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, RetryCallState
 from code_brief.config import Config
 from code_brief.models import PRSummary, Risk
 from code_brief.llm.prompt import SYSTEM_PROMPT, build_prompt
@@ -24,36 +24,42 @@ def clean_json(text: str) -> str:
     return cleaned.strip()
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-def call_api(config: Config, messages: list) -> str:
-    with httpx.Client() as client:
-        response = client.post(
-            config.anthropic_endpoint,
-            headers={
-                "x-api-key": config.anthropic_api_key,
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": config.model,
-                "messages": messages,
-                "max_tokens": 1024
-            },
-            timeout=60.0
-        )
-        response.raise_for_status()
-        text = response.json()["content"][0]["text"]
+def make_api_caller(config: Config):
+    @retry(
+        stop=stop_after_attempt(config.max_retries),
+        wait=wait_exponential(multiplier=1, min=config.retry_wait_min, max=config.retry_wait_max)
+    )
+    def call_api(messages: list) -> str:
+        with httpx.Client() as client:
+            response = client.post(
+                config.anthropic_endpoint,
+                headers={
+                    "x-api-key": config.anthropic_api_key,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": config.model,
+                    "messages": messages,
+                    "max_tokens": config.llm_max_tokens
+                },
+                timeout=config.api_timeout
+            )
+            response.raise_for_status()
+            text = response.json()["content"][0]["text"]
 
-        if not text:
-            raise ValueError("Empty response from API")
+            if not text:
+                raise ValueError("Empty response from API")
 
-        cleaned = clean_json(text)
+            cleaned = clean_json(text)
 
-        try:
-            json.loads(cleaned)
-        except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON response from API: {text[:200]}")
+            try:
+                json.loads(cleaned)
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid JSON response from API: {text[:200]}")
 
-        return cleaned
+            return cleaned
+
+    return call_api
 
 
 def parse_response(response_text: str, config: Config, pr_title: str = "") -> PRSummary:
@@ -90,16 +96,18 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
 
 
 def call_claude(config: Config, files: list, pr_title: str = "") -> PRSummary:
-    if not needs_chunking(files):
+    call_api = make_api_caller(config)
+
+    if not needs_chunking(files, config):
         prompt = build_prompt(files, pr_title=pr_title)
         messages = [
             {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{prompt}"}
         ]
-        response_text = call_api(config, messages)
+        response_text = call_api(messages)
         return parse_response(response_text, config, pr_title=pr_title)
 
     else:
-        chunks = chunk_files(files)
+        chunks = chunk_files(files, config)
         all_risks = []
         all_focus_areas = []
         summaries = []
@@ -123,7 +131,7 @@ Important:
                 {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{prompt}"}
             ]
 
-            response_text = call_api(config, messages)
+            response_text = call_api(messages)
 
             try:
                 data = json.loads(response_text)

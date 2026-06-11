@@ -1,6 +1,5 @@
 import tiktoken
-
-MAX_TOKENS = 6000
+from code_brief.config import Config
 
 
 def count_tokens(text: str) -> int:
@@ -8,7 +7,7 @@ def count_tokens(text: str) -> int:
     return len(encoder.encode(text))
 
 
-def chunk_files(files: list) -> list[list[dict]]:
+def chunk_files(files: list, config: Config) -> list[list[dict]]:
     chunks = []
     current_chunk = []
     current_tokens = 0
@@ -16,7 +15,7 @@ def chunk_files(files: list) -> list[list[dict]]:
     for f in files:
         file_tokens = count_tokens(f["diff"])
 
-        if current_tokens + file_tokens > MAX_TOKENS and current_chunk:
+        if current_tokens + file_tokens > config.max_tokens_per_chunk and current_chunk:
             chunks.append(current_chunk)
             current_chunk = [f]
             current_tokens = file_tokens
@@ -30,6 +29,6 @@ def chunk_files(files: list) -> list[list[dict]]:
     return chunks
 
 
-def needs_chunking(files: list) -> bool:
+def needs_chunking(files: list, config: Config) -> bool:
     total = sum(count_tokens(f["diff"]) for f in files)
-    return total > MAX_TOKENS
+    return total > config.max_tokens_per_chunk
