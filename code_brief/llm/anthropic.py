@@ -50,12 +50,21 @@ def make_api_caller(config: Config, metrics=None):
                     timeout=config.api_timeout
                 )
                 response.raise_for_status()
-                text = response.json()["content"][0]["text"]
+                response_json = response.json()
+                text = response_json["content"][0]["text"]
+
+                # track token usage from API response
+                input_tokens = response_json.get("usage", {}).get("input_tokens", 0)
+                output_tokens = response_json.get("usage", {}).get("output_tokens", 0)
+                if metrics:
+                    metrics.input_tokens += input_tokens
+                    metrics.output_tokens += output_tokens
+                    metrics.total_tokens += input_tokens + output_tokens
 
                 if not text:
                     if metrics:
                         metrics.retry_count += 1
-                    logger.warning("Empty response from API — retrying")
+                    logger.warning("Empty response from API - retrying")
                     raise ValueError("Empty response from API")
 
                 cleaned = clean_json(text)
@@ -65,7 +74,7 @@ def make_api_caller(config: Config, metrics=None):
                 except json.JSONDecodeError:
                     if metrics:
                         metrics.retry_count += 1
-                    logger.warning(f"Invalid JSON response — retrying. Preview: {text[:100]}")
+                    logger.warning(f"Invalid JSON response - retrying. Preview: {text[:100]}")
                     raise ValueError(f"Invalid JSON response from API: {text[:200]}")
 
                 elapsed = round(time.time() - start, 2)
@@ -86,14 +95,14 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
     try:
         data = json.loads(response_text)
     except json.JSONDecodeError:
-        logger.error("Failed to parse LLM response — returning fallback summary")
+        logger.error("Failed to parse LLM response - returning fallback summary")
         return PRSummary(
             pr_number=config.pr_number,
             repo=config.repo,
             title=pr_title,
             summary="CodeBrief was unable to parse the LLM response. Please review the diff manually.",
             risks=[],
-            focus_areas=["Manual review required — LLM returned an invalid response."]
+            focus_areas=["Manual review required - LLM returned an invalid response."]
         )
 
     risks = [
@@ -106,7 +115,7 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
         if r.get("description")
     ]
 
-    logger.info(f"Parsed response — {len(risks)} risks, {len(data.get('focus_areas', []))} focus areas")
+    logger.info(f"Parsed response - {len(risks)} risks, {len(data.get('focus_areas', []))} focus areas")
     return PRSummary(
         pr_number=config.pr_number,
         repo=config.repo,
@@ -118,11 +127,9 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
 
 
 def process_chunk(chunk: dict, config: Config, call_api, chunk_index: int, total_chunks: int) -> dict:
-    """Process a single chunk and return raw parsed data."""
     chunk_type = chunk.get("type", "normal")
 
     if chunk_type == "large_file":
-        # process each sub-chunk separately and merge
         sub_chunks = chunk.get("sub_chunks", [])
         file = chunk["files"][0]
         summaries = []
@@ -134,7 +141,7 @@ def process_chunk(chunk: dict, config: Config, call_api, chunk_index: int, total
             prompt = f"""Please review the following partial diff for file {file['filename']} (part {j+1} of {len(sub_chunks)}) and return the JSON review.
 
 Important:
-- This is only part of the file — do not assume anything about code not shown.
+- This is only part of the file - do not assume anything about code not shown.
 - Focus on correctness, reliability, security, performance, and operational impact.
 
 File: {file['filename']} (+{file['additions']} -{file['deletions']})
@@ -148,7 +155,7 @@ File: {file['filename']} (+{file['additions']} -{file['deletions']})
                 all_risks.extend(data.get("risks", []))
                 all_focus_areas.extend(data.get("focus_areas", []))
             except json.JSONDecodeError:
-                logger.warning(f"Sub-chunk {j+1} parse failed — skipping")
+                logger.warning(f"Sub-chunk {j+1} parse failed - skipping")
 
         return {
             "summary": " ".join(summaries),
@@ -157,7 +164,6 @@ File: {file['filename']} (+{file['additions']} -{file['deletions']})
         }
 
     else:
-        # normal or truncated chunk
         files = chunk["files"]
         truncated = chunk.get("truncated_files", [])
 
@@ -165,7 +171,7 @@ File: {file['filename']} (+{file['additions']} -{file['deletions']})
         for f in files:
             chunk_diff += f"File: {f['filename']} (+{f['additions']} -{f['deletions']})\n"
             if f["filename"] in truncated:
-                chunk_diff += "[NOTE: This file was truncated due to size — partial diff shown]\n"
+                chunk_diff += "[NOTE: This file was truncated due to size - partial diff shown]\n"
             chunk_diff += f"{f['diff']}\n\n"
 
         prompt = f"""Please review the following pull request diff (chunk {chunk_index+1} of {total_chunks}) and return the JSON review.
@@ -183,12 +189,11 @@ Important:
         try:
             return json.loads(response_text)
         except json.JSONDecodeError:
-            logger.warning(f"Chunk {chunk_index+1} parse failed — skipping")
+            logger.warning(f"Chunk {chunk_index+1} parse failed - skipping")
             return {"summary": "", "risks": [], "focus_areas": []}
 
 
 def hierarchical_summarise(chunk_summaries: list[str], config: Config, call_api, pr_title: str) -> str:
-    """Level 3 — merge all chunk summaries into a final PR summary."""
     combined = "\n\n".join([f"Chunk {i+1} summary:\n{s}" for i, s in enumerate(chunk_summaries) if s])
 
     prompt = f"""You are given summaries from multiple chunks of a large pull request titled "{pr_title}".
@@ -216,9 +221,8 @@ def call_claude(config: Config, files: list, pr_title: str = "", metrics=None) -
     call_api = make_api_caller(config, metrics)
     start = time.time()
 
-    # path 1 — single pass, diff fits in one chunk
     if not needs_chunking(files, config):
-        logger.info("Diff within token limit — sending in single pass")
+        logger.info("Diff within token limit - sending in single pass")
         metrics.chunk_count = 1
         prompt = build_prompt(files, pr_title=pr_title)
         messages = [{"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{prompt}"}]
@@ -229,12 +233,11 @@ def call_claude(config: Config, files: list, pr_title: str = "", metrics=None) -
         chunks = chunk_files(files, config)
         metrics.chunk_count = len(chunks)
 
-        # path 2 — hierarchical summarisation for very large PRs
         use_hierarchical = needs_hierarchical_summarisation(files, config)
         if use_hierarchical:
-            logger.info(f"Very large PR — using hierarchical summarisation across {len(chunks)} chunks")
+            logger.info(f"Very large PR - using hierarchical summarisation across {len(chunks)} chunks")
         else:
-            logger.info(f"Large diff — processing {len(chunks)} chunks")
+            logger.info(f"Large diff - processing {len(chunks)} chunks")
 
         all_risks = []
         all_focus_areas = []
@@ -255,7 +258,6 @@ def call_claude(config: Config, files: list, pr_title: str = "", metrics=None) -
             ])
             all_focus_areas.extend(data.get("focus_areas", []))
 
-        # level 3 — for very large PRs, synthesise chunk summaries into one
         if use_hierarchical and len(chunk_summaries) > 3:
             logger.info("Running hierarchical summarisation pass")
             final_summary = hierarchical_summarise(chunk_summaries, config, call_api, pr_title)

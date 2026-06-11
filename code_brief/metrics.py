@@ -14,6 +14,8 @@ class Metrics:
     retry_count: int = 0
     failed_requests: int = 0
     response_times: list[float] = field(default_factory=list)
+    input_tokens: int = 0
+    output_tokens: int = 0
 
     def elapsed(self) -> float:
         return round(time.time() - self.start_time, 2)

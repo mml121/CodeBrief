@@ -86,7 +86,7 @@ def main(
         console.print("[yellow]Slack integration coming soon![/yellow]")
 
     table = Table(
-        title="⚡ Run Metrics",
+        title="Run Metrics",
         box=box.ROUNDED,
         show_header=False,
         padding=(0, 2),
@@ -98,6 +98,7 @@ def main(
 
     table.add_row("Files processed", f"[green]{metrics.files_processed}[/green]")
     table.add_row("Files skipped", f"[yellow]{metrics.files_skipped}[/yellow]")
+    table.add_row("Total tokens", str(metrics.total_tokens))
     table.add_row("Chunks", str(metrics.chunk_count))
     table.add_row("LLM requests", str(metrics.llm_request_count))
     table.add_row("Retries", f"[{'yellow' if metrics.retry_count > 0 else 'green'}]{metrics.retry_count}[/{'yellow' if metrics.retry_count > 0 else 'green'}]")
