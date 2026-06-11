@@ -1,6 +1,8 @@
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
+from rich import box
 from code_brief.config import load_config
 from code_brief.github.client import get_pr
 from code_brief.github.diff import get_changed_files
@@ -8,7 +10,9 @@ from code_brief.llm.anthropic import call_claude
 from code_brief.delivery.terminal import deliver_terminal
 from code_brief.delivery.github import deliver_github
 from code_brief.delivery.email import deliver_email
+from code_brief.delivery.slack import deliver_slack
 from code_brief.logger import set_log_level
+from code_brief.metrics import Metrics
 
 app = typer.Typer()
 console = Console()
@@ -23,6 +27,8 @@ def main(
     verbose: bool = typer.Option(False, "--verbose", help="Show detailed output"),
 ):
     set_log_level(verbose)
+    metrics = Metrics()
+
     console.print(Panel(f"[bold]CodeBrief[/bold] — analysing PR [cyan]#{pr}[/cyan] on [cyan]{repo}[/cyan]"))
 
     config = load_config(repo=repo, pr_number=pr)
@@ -30,6 +36,10 @@ def main(
     with console.status("[bold green]Fetching PR from GitHub..."):
         pull = get_pr(config)
         files, skipped = get_changed_files(pull)
+
+    metrics.files_processed = len(files)
+    metrics.files_skipped = len(skipped)
+    metrics.skip_reasons = [s["reason"] for s in skipped]
 
     console.print(f"[green]✓[/green] Fetched PR: [bold]{pull.title}[/bold]")
     console.print(f"[green]✓[/green] {len(files)} files changed")
@@ -50,7 +60,7 @@ def main(
         return
 
     with console.status("[bold green]Analysing diff with Claude..."):
-        summary = call_claude(config, files=files, pr_title=pull.title)
+        summary = call_claude(config, files=files, pr_title=pull.title, metrics=metrics)
 
     if output == "terminal":
         deliver_terminal(summary)
@@ -65,3 +75,26 @@ def main(
         console.print(f"[green]✓[/green] Email sent to {email_to}")
     elif output == "slack":
         console.print("[yellow]Slack integration coming soon![/yellow]")
+
+    table = Table(
+        title="Run Metrics",
+        box=box.ROUNDED,
+        show_header=False,
+        padding=(0, 2),
+        title_style="bold cyan",
+        border_style="cyan"
+    )
+    table.add_column(style="dim white", min_width=20)
+    table.add_column(justify="right", style="bold white")
+
+    table.add_row("Files processed", f"[green]{metrics.files_processed}[/green]")
+    table.add_row("Files skipped", f"[yellow]{metrics.files_skipped}[/yellow]")
+    table.add_row("Chunks", str(metrics.chunk_count))
+    table.add_row("LLM requests", str(metrics.llm_request_count))
+    table.add_row("Retries", f"[{'yellow' if metrics.retry_count > 0 else 'green'}]{metrics.retry_count}[/{'yellow' if metrics.retry_count > 0 else 'green'}]")
+    table.add_row("Failed requests", f"[{'red' if metrics.failed_requests > 0 else 'green'}]{metrics.failed_requests}[/{'red' if metrics.failed_requests > 0 else 'green'}]")
+    table.add_row("Avg response time", f"{metrics.avg_response_time()}s")
+    table.add_row("Total time", f"[cyan]{metrics.elapsed()}s[/cyan]")
+
+    console.print("\n")
+    console.print(table, justify="center")
