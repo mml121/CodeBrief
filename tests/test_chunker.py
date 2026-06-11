@@ -1,4 +1,4 @@
-import pytest
+import pytest  # noqa: F401
 from code_brief.llm.chunker import count_tokens, chunk_files, needs_chunking
 from code_brief.config import Config
 
@@ -48,7 +48,6 @@ def test_needs_chunking_small_diff(config):
 
 
 def test_needs_chunking_large_diff(config):
-    # generate a diff that exceeds 100 tokens
     big_diff = "x " * 200
     files = [make_file("main.py", big_diff)]
     assert needs_chunking(files, config) is True
@@ -64,7 +63,7 @@ def test_chunk_files_single_small_file(config):
     files = [make_file("main.py", "small diff")]
     chunks = chunk_files(files, config)
     assert len(chunks) == 1
-    assert chunks[0][0]["filename"] == "main.py"
+    assert chunks[0]["files"][0]["filename"] == "main.py"
 
 
 def test_chunk_files_splits_large_diff(config):
@@ -84,9 +83,8 @@ def test_chunk_files_groups_small_files(config):
         make_file("file3.py", "tiny"),
     ]
     chunks = chunk_files(files, config)
-    # all small files should fit in one chunk
     assert len(chunks) == 1
-    assert len(chunks[0]) == 3
+    assert len(chunks[0]["files"]) == 3
 
 
 def test_chunk_files_empty_list(config):
