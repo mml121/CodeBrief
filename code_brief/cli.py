@@ -9,6 +9,7 @@ from code_brief.delivery.terminal import deliver_terminal
 from code_brief.delivery.github import deliver_github
 from code_brief.delivery.email import deliver_email
 from code_brief.delivery.slack import deliver_slack
+from code_brief.logger import set_log_level
 
 app = typer.Typer()
 console = Console()
@@ -22,6 +23,7 @@ def main(
     dry_run: bool = typer.Option(False, "--dry-run", help="Fetch diff without calling LLM"),
     verbose: bool = typer.Option(False, "--verbose", help="Show detailed output"),
 ):
+    set_log_level(verbose)
     console.print(Panel(f"[bold]CodeBrief[/bold] — analysing PR [cyan]#{pr}[/cyan] on [cyan]{repo}[/cyan]"))
 
     config = load_config(repo=repo, pr_number=pr)

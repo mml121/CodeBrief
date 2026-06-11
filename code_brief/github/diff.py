@@ -1,13 +1,13 @@
 from unidiff import PatchSet
 from github.PullRequest import PullRequest as GithubPR
+from code_brief.logger import get_logger
+
+logger = get_logger("code_brief.diff")
 
 SKIP_EXTENSIONS = {
-    # binary
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
     ".pdf", ".zip", ".tar", ".gz", ".exe", ".dll", ".bin",
-    # lock files
     "package-lock.json", "poetry.lock", "Pipfile.lock", "yarn.lock",
-    # generated / minified
     ".min.js", ".min.css", ".pyc",
 }
 
@@ -26,11 +26,13 @@ def get_raw_diff(pr: GithubPR) -> tuple[str, list[dict]]:
     for file in pr.get_files():
         skip, reason = should_skip(file.filename)
         if skip:
+            logger.debug(f"Skipping {file.filename} — {reason}")
             skipped.append({"filename": file.filename, "reason": reason})
             continue
 
         if not file.patch:
-            skipped.append({"filename": file.filename, "reason": "skipped — patch unavailable"})
+            logger.warning(f"No patch available for {file.filename} — skipping")
+            skipped.append({"filename": file.filename, "reason": "patch unavailable"})
             continue
 
         diff_text += f"--- a/{file.filename}\n"
@@ -48,6 +50,7 @@ def get_changed_files(pr: GithubPR) -> tuple[list, list[dict]]:
     raw, skipped = get_raw_diff(pr)
 
     if not raw:
+        logger.warning("No diff content found — all files were skipped or had no patch")
         return [], skipped
 
     patch = parse_diff(raw)
@@ -61,4 +64,5 @@ def get_changed_files(pr: GithubPR) -> tuple[list, list[dict]]:
             "diff": str(patched_file)
         })
 
+    logger.info(f"{len(files)} files parsed, {len(skipped)} skipped")
     return files, skipped

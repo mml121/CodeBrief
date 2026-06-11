@@ -1,10 +1,14 @@
 import httpx
 import json
-from tenacity import retry, stop_after_attempt, wait_exponential, RetryCallState
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
 from code_brief.config import Config
 from code_brief.models import PRSummary, Risk
 from code_brief.llm.prompt import SYSTEM_PROMPT, build_prompt
 from code_brief.llm.chunker import needs_chunking, chunk_files
+from code_brief.logger import get_logger
+
+logger = get_logger("code_brief.llm")
 
 
 def clean_json(text: str) -> str:
@@ -30,6 +34,7 @@ def make_api_caller(config: Config):
         wait=wait_exponential(multiplier=1, min=config.retry_wait_min, max=config.retry_wait_max)
     )
     def call_api(messages: list) -> str:
+        start = time.time()
         with httpx.Client() as client:
             response = client.post(
                 config.anthropic_endpoint,
@@ -48,6 +53,7 @@ def make_api_caller(config: Config):
             text = response.json()["content"][0]["text"]
 
             if not text:
+                logger.warning("Empty response from API — retrying")
                 raise ValueError("Empty response from API")
 
             cleaned = clean_json(text)
@@ -55,8 +61,11 @@ def make_api_caller(config: Config):
             try:
                 json.loads(cleaned)
             except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON response — retrying. Preview: {text[:100]}")
                 raise ValueError(f"Invalid JSON response from API: {text[:200]}")
 
+            elapsed = round(time.time() - start, 2)
+            logger.info(f"API response received in {elapsed}s")
             return cleaned
 
     return call_api
@@ -66,6 +75,7 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
     try:
         data = json.loads(response_text)
     except json.JSONDecodeError:
+        logger.error("Failed to parse LLM response after all retries — returning fallback summary")
         return PRSummary(
             pr_number=config.pr_number,
             repo=config.repo,
@@ -85,6 +95,7 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
         if r.get("description")
     ]
 
+    logger.info(f"Parsed response — {len(risks)} risks, {len(data.get('focus_areas', []))} focus areas")
     return PRSummary(
         pr_number=config.pr_number,
         repo=config.repo,
@@ -97,22 +108,25 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
 
 def call_claude(config: Config, files: list, pr_title: str = "") -> PRSummary:
     call_api = make_api_caller(config)
+    start = time.time()
 
     if not needs_chunking(files, config):
+        logger.info("Diff within token limit — sending in single pass")
         prompt = build_prompt(files, pr_title=pr_title)
         messages = [
             {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{prompt}"}
         ]
         response_text = call_api(messages)
-        return parse_response(response_text, config, pr_title=pr_title)
-
+        summary = parse_response(response_text, config, pr_title=pr_title)
     else:
         chunks = chunk_files(files, config)
+        logger.info(f"Large diff — processing {len(chunks)} chunks")
         all_risks = []
         all_focus_areas = []
         summaries = []
 
         for i, chunk in enumerate(chunks):
+            logger.info(f"Processing chunk {i+1}/{len(chunks)}")
             chunk_diff = ""
             for f in chunk:
                 chunk_diff += f"File: {f['filename']} (+{f['additions']} -{f['deletions']})\n"
@@ -136,6 +150,7 @@ Important:
             try:
                 data = json.loads(response_text)
             except json.JSONDecodeError:
+                logger.warning(f"Chunk {i+1} parse failed — skipping")
                 data = {"summary": "", "risks": [], "focus_areas": []}
 
             summaries.append(data.get("summary", ""))
@@ -150,7 +165,7 @@ Important:
             ])
             all_focus_areas.extend(data.get("focus_areas", []))
 
-        return PRSummary(
+        summary = PRSummary(
             pr_number=config.pr_number,
             repo=config.repo,
             title=pr_title,
@@ -158,3 +173,7 @@ Important:
             risks=all_risks,
             focus_areas=all_focus_areas
         )
+
+    elapsed = round(time.time() - start, 2)
+    logger.info(f"Total processing time: {elapsed}s")
+    return summary
