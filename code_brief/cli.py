@@ -12,19 +12,29 @@ from code_brief.delivery.github import deliver_github
 from code_brief.delivery.email import deliver_email
 from code_brief.logger import set_log_level
 from code_brief.metrics import Metrics
+from code_brief.init import run_init
 
 app = typer.Typer()
 console = Console()
 
 
-@app.command()
+@app.callback(invoke_without_command=True)
 def main(
-    pr: int = typer.Option(..., "--pr", help="PR number to review"),
-    repo: str = typer.Option(..., "--repo", help="Repository in format owner/repo"),
+    ctx: typer.Context,
+    pr: int = typer.Option(None, "--pr", help="PR number to review"),
+    repo: str = typer.Option(None, "--repo", help="Repository in format owner/repo"),
     output: str = typer.Option("terminal", "--output", help="Output mode: terminal, github, slack, email"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Fetch diff without calling LLM"),
     verbose: bool = typer.Option(False, "--verbose", help="Show detailed output"),
 ):
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if pr is None or repo is None:
+        console.print("[red]✗ --pr and --repo are required[/red]")
+        console.print("[dim]Run 'code-brief init' to set up CodeBrief for the first time[/dim]")
+        raise typer.Exit(1)
+
     set_log_level(verbose)
     metrics = Metrics()
 
@@ -76,7 +86,7 @@ def main(
         console.print("[yellow]Slack integration coming soon![/yellow]")
 
     table = Table(
-        title="Run Metrics",
+        title="⚡ Run Metrics",
         box=box.ROUNDED,
         show_header=False,
         padding=(0, 2),
@@ -97,3 +107,8 @@ def main(
 
     console.print("\n")
     console.print(table, justify="center")
+
+
+@app.command()
+def init():
+    run_init()
