@@ -1,6 +1,5 @@
-import pytest
 from unittest.mock import MagicMock
-from code_brief.github.diff import get_changed_files, should_skip, get_raw_diff
+from code_brief.github.diff import get_changed_files, should_skip
 
 
 # --- should_skip tests ---

@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch, MagicMock
 from code_brief.llm.anthropic import clean_json, parse_response
 from code_brief.config import Config
 
