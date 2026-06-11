@@ -1,6 +1,3 @@
-from code_brief.github.diff import get_changed_files
-from code_brief.config import Config
-
 SYSTEM_PROMPT = """You are a senior software engineer performing a pull request review.
 
 Analyse the provided diff and return a JSON object with EXACTLY this schema:
@@ -159,9 +156,7 @@ OUTPUT RULES
 """
 
 
-def build_prompt(config: Config, pr_title: str = "") -> str:
-    files = get_changed_files(config)
-
+def build_prompt(files: list, pr_title: str = "") -> str:
     diff_text = f"PR Title: {pr_title}\n" if pr_title else ""
     diff_text += f"PR contains {len(files)} changed files:\n"
     for f in files:

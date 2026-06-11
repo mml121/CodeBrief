@@ -1,5 +1,8 @@
 from github import Github
+import logging
 from code_brief.config import Config
+
+logging.getLogger("github").setLevel(logging.WARNING)
 
 
 def get_pr(config: Config):
