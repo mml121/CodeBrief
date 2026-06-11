@@ -10,7 +10,6 @@ from code_brief.llm.anthropic import call_claude
 from code_brief.delivery.terminal import deliver_terminal
 from code_brief.delivery.github import deliver_github
 from code_brief.delivery.email import deliver_email
-from code_brief.delivery.slack import deliver_slack
 from code_brief.logger import set_log_level
 from code_brief.metrics import Metrics
 
