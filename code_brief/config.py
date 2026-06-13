@@ -9,6 +9,26 @@ ENV_PATH = CONFIG_DIR / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
 
 
+def _get_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value in (None, ""):
+        return default
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {value!r}") from exc
+
+
+def _get_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value in (None, ""):
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number, got {value!r}") from exc
+
+
 @dataclass
 class Config:
     github_token: str
@@ -27,8 +47,6 @@ class Config:
     email_password: str = ""
     email_smtp_host: str = ""
     email_smtp_port: int = 465
-    slack_webhook_url: str = ""
-    slack_channel: str = ""
 
 
 def load_config(repo: str, pr_number: int) -> Config:
@@ -59,15 +77,14 @@ def load_config(repo: str, pr_number: int) -> Config:
         repo=repo,
         pr_number=pr_number,
         model=os.getenv("ANTHROPIC_MODEL") or "claude-3-haiku",
-        max_tokens_per_chunk=int(os.getenv("MAX_TOKENS_PER_CHUNK") or 6000),
-        llm_max_tokens=int(os.getenv("LLM_MAX_TOKENS") or 1024),
-        api_timeout=float(os.getenv("API_TIMEOUT") or 60.0),
-        max_retries=int(os.getenv("MAX_RETRIES") or 3),
-        retry_wait_min=int(os.getenv("RETRY_WAIT_MIN") or 2),
-        retry_wait_max=int(os.getenv("RETRY_WAIT_MAX") or 10),
+        max_tokens_per_chunk=_get_int("MAX_TOKENS_PER_CHUNK", 6000),
+        llm_max_tokens=_get_int("LLM_MAX_TOKENS", 1024),
+        api_timeout=_get_float("API_TIMEOUT", 60.0),
+        max_retries=_get_int("MAX_RETRIES", 3),
+        retry_wait_min=_get_int("RETRY_WAIT_MIN", 2),
+        retry_wait_max=_get_int("RETRY_WAIT_MAX", 10),
         email_sender=os.getenv("EMAIL_SENDER") or "",
         email_password=os.getenv("EMAIL_PASSWORD") or "",
         email_smtp_host=os.getenv("EMAIL_SMTP_HOST") or "",
-        slack_webhook_url=os.getenv("SLACK_WEBHOOK_URL") or "",
-        slack_channel=os.getenv("SLACK_CHANNEL") or "",
+        email_smtp_port=_get_int("EMAIL_SMTP_PORT", 465),
     )

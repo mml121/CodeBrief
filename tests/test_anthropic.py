@@ -1,5 +1,5 @@
 import pytest
-from code_brief.llm.anthropic import clean_json, parse_response
+from code_brief.llm.anthropic import clean_json, extract_response_text, parse_response
 from code_brief.config import Config
 
 
@@ -50,6 +50,15 @@ def test_parse_response_valid(config):
     assert summary.focus_areas == ["Check migrations"]
 
 
+def test_parse_response_normalises_medium_severity(config):
+    text = (
+        '{"summary": "A good PR", "risks": [{"severity": "MEDIUM", "confidence": 75, '
+        '"description": "Risk 1"}], "focus_areas": []}'
+    )
+    summary = parse_response(text, config, pr_title="Test PR")
+    assert summary.risks[0].severity == "MED"
+
+
 def test_parse_response_invalid_json_returns_fallback(config):
     summary = parse_response("this is not json", config, pr_title="Test PR")
     assert "unable to parse" in summary.summary.lower()
@@ -83,3 +92,15 @@ def test_parse_response_sets_repo_and_pr_number(config):
     summary = parse_response(text, config)
     assert summary.repo == "test/repo"
     assert summary.pr_number == 1
+
+
+# --- extract_response_text tests ---
+
+def test_extract_response_text_valid():
+    response = {"content": [{"type": "text", "text": '{"summary": "ok"}'}]}
+    assert extract_response_text(response) == '{"summary": "ok"}'
+
+
+def test_extract_response_text_rejects_missing_content():
+    with pytest.raises(ValueError, match="content"):
+        extract_response_text({"usage": {}})

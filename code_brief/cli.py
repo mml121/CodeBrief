@@ -1,3 +1,5 @@
+from enum import Enum
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -13,9 +15,17 @@ from code_brief.delivery.email import deliver_email
 from code_brief.logger import set_log_level
 from code_brief.metrics import Metrics
 from code_brief.init import run_init
+from code_brief.config_cmd import config_app
 
 app = typer.Typer()
+app.add_typer(config_app, name="config")
 console = Console()
+
+
+class OutputMode(str, Enum):
+    terminal = "terminal"
+    github = "github"
+    email = "email"
 
 
 @app.callback(invoke_without_command=True)
@@ -23,7 +33,7 @@ def main(
     ctx: typer.Context,
     pr: int = typer.Option(None, "--pr", help="PR number to review"),
     repo: str = typer.Option(None, "--repo", help="Repository in format owner/repo"),
-    output: str = typer.Option("terminal", "--output", help="Output mode: terminal, github, slack, email"),
+    output: OutputMode = typer.Option(OutputMode.terminal, "--output", help="Output mode"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Fetch diff without calling LLM"),
     verbose: bool = typer.Option(False, "--verbose", help="Show detailed output"),
 ):
@@ -68,23 +78,24 @@ def main(
         console.print("\n[yellow]Dry run — skipping LLM call[/yellow]")
         return
 
+    if not files:
+        console.print("\n[yellow]No reviewable diff content found. Skipping LLM call.[/yellow]")
+        return
+
     with console.status("[bold green]Analysing diff with Claude..."):
         summary = call_claude(config, files=files, pr_title=pull.title, metrics=metrics)
 
-    if output == "terminal":
+    if output == OutputMode.terminal:
         deliver_terminal(summary)
-    elif output == "github":
+    elif output == OutputMode.github:
         console.print("\n[bold green]Posting comment to GitHub...[/bold green]")
         deliver_github(summary, config)
         console.print(f"[green]✓[/green] Comment posted to PR #{pr}")
-    elif output == "email":
+    elif output == OutputMode.email:
         email_to = typer.prompt("Recipient email address")
         console.print("\n[bold green]Sending email...[/bold green]")
         deliver_email(summary, config, recipient=email_to)
         console.print(f"[green]✓[/green] Email sent to {email_to}")
-    elif output == "slack":
-        console.print("[yellow]Slack integration coming soon![/yellow]")
-
     table = Table(
         title="Run Metrics",
         box=box.ROUNDED,

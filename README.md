@@ -27,7 +27,7 @@ CodeBrief automates the first pass. It fetches the diff, sends it to Claude, and
 - **Structured summaries** - what changed, what risks exist, and where to focus the review
 - **Risk scoring** - HIGH / MED / LOW severity with confidence scores backed by diff evidence
 - **Smart diff handling** - file categorisation, token-aware chunking, and hierarchical summarisation for large PRs
-- **Multiple delivery modes** - terminal, GitHub PR comment, email, Slack
+- **Multiple delivery modes** - terminal, GitHub PR comment, email
 - **Graceful error handling** - missing patches, binary files, and invalid LLM responses handled cleanly
 - **Retry logic** - automatic retries with exponential backoff on API failures
 - **Onboarding** - `code-brief init` guides first-time setup with connection validation
@@ -68,7 +68,7 @@ CodeBrief is structured as a Python pipeline with four logical layers:
                           |
         +-----------------v-----------------+
         |          Delivery Layer           |
-        |  Terminal, GitHub, Email, Slack   |
+        |      Terminal, GitHub, Email      |
         +-----------------------------------+
 ```
 
@@ -107,7 +107,7 @@ pipx install git+https://github.com/mml121/CodeBrief.git@v1.0.0
 code-brief init
 ```
 
-The `init` command walks you through setting up your API keys, validates each connection, and writes your configuration automatically. You can optionally configure email and Slack delivery during setup.
+The `init` command walks you through setting up your API keys, validates each connection, and writes your configuration automatically. You can optionally configure email delivery during setup.
 
 ---
 
@@ -138,13 +138,6 @@ code-brief --pr <number> --repo <owner/repo> --output github
 code-brief --pr <number> --repo <owner/repo> --output email
 # You will be prompted for the recipient address at runtime
 ```
-
-**Send to Slack** *(coming soon)*
-```bash
-code-brief --pr <number> --repo <owner/repo> --output slack
-```
-
----
 
 ## Example output
 
@@ -232,8 +225,27 @@ All configuration is stored in `~/.codebrief/.env`. Run `code-brief init` to gen
 | `EMAIL_SENDER` | For email | - | Gmail address to send from |
 | `EMAIL_PASSWORD` | For email | - | Gmail app password |
 | `EMAIL_SMTP_HOST` | For email | - | SMTP host |
-| `SLACK_WEBHOOK_URL` | For Slack | - | Slack incoming webhook URL |
-| `SLACK_CHANNEL` | For Slack | - | Slack channel name |
+| `EMAIL_SMTP_PORT` | For email | `465` | SMTP SSL port |
+
+### LLM settings
+
+View current LLM settings:
+
+```bash
+code-brief config show
+```
+
+Update a setting:
+
+```bash
+code-brief config set MAX_RETRIES 5
+```
+
+Reset a setting to its default:
+
+```bash
+code-brief config reset MAX_RETRIES
+```
 
 ### Logs
 
@@ -248,7 +260,6 @@ Each run is logged to `~/.codebrief/logs/codebrief_YYYYMMDD.log`, with a separat
 | `terminal` | Rich-formatted output with colour-coded risks | Available |
 | `github` | Markdown summary posted as a PR comment | Available |
 | `email` | Styled HTML email sent to a recipient | Available |
-| `slack` | Summary sent to a Slack channel | Coming soon |
 
 ---
 
@@ -271,7 +282,7 @@ Set `ANTHROPIC_MODEL` in `~/.codebrief/.env` to switch models. Defaults to `clau
 |---|---|---|
 | `--pr` | required | PR number to review |
 | `--repo` | required | Repository in `owner/repo` format |
-| `--output` | `terminal` | Output mode: `terminal`, `github`, `email`, `slack` |
+| `--output` | `terminal` | Output mode: `terminal`, `github`, `email` |
 | `--dry-run` | `False` | Fetch diff without calling the LLM |
 | `--verbose` | `False` | Show all files, skipped files, and debug output |
 
@@ -315,7 +326,7 @@ Run linting:
 ruff check .
 ```
 
-Tests cover diff parsing, file filtering, token counting, chunking logic, prompt generation, LLM response parsing, and connection validation. No real API calls are made during tests - all external dependencies are mocked.
+Tests cover diff parsing, file filtering, token counting, chunking logic, prompt generation, LLM response parsing, CLI validation, config validation, delivery formatting, and connection validation. No real API calls are made during tests - all external dependencies are mocked.
 
 ---
 
@@ -336,7 +347,6 @@ Pipeline configuration is at `.github/workflows/ci.yml`.
 - Risk confidence scores are based on LLM reasoning, not static analysis - false positives are possible on ambiguous diffs
 - Very large PRs (500K+ tokens) are handled via hierarchical summarisation - detail is progressively compressed at each level
 - Email delivery requires Gmail with 2-Step Verification and may be blocked on some corporate or institutional networks
-- Slack integration is not yet implemented
 
 ---
 

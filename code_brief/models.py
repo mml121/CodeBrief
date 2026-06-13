@@ -1,6 +1,16 @@
 from dataclasses import dataclass, field
 from typing import List
 
+
+def normalise_severity(value: str) -> str:
+    severity = (value or "LOW").upper()
+    if severity in {"MEDIUM", "MID"}:
+        return "MED"
+    if severity in {"HIGH", "MED", "LOW"}:
+        return severity
+    return "LOW"
+
+
 @dataclass
 class Risk:
     severity: str

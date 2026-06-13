@@ -1,8 +1,14 @@
 import smtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from html import escape
+
 from code_brief.config import Config
 from code_brief.models import PRSummary
+
+
+def _safe_header(value: str) -> str:
+    return value.replace("\r", " ").replace("\n", " ")
 
 
 def format_email_body(summary: PRSummary) -> str:
@@ -13,16 +19,16 @@ def format_email_body(summary: PRSummary) -> str:
             colour = "#e74c3c" if risk.severity == "HIGH" else "#f39c12" if risk.severity == "MED" else "#3498db"
             risks_html += f"""
             <div style="margin: 8px 0; padding: 10px; border-left: 4px solid {colour}; background: #f9f9f9;">
-                <strong style="color: {colour}">{risk.severity}</strong>
-                <span style="color: #888;">({risk.confidence}%)</span>
-                {risk.description}
+                <strong style="color: {colour}">{escape(risk.severity)}</strong>
+                <span style="color: #888;">({escape(str(risk.confidence))}%)</span>
+                {escape(risk.description)}
             </div>"""
 
     focus_html = ""
     if summary.focus_areas:
         focus_html += "<h3>Reviewer Focus Areas</h3><ol>"
         for area in summary.focus_areas:
-            focus_html += f"<li style='margin: 6px 0'>{area}</li>"
+            focus_html += f"<li style='margin: 6px 0'>{escape(area)}</li>"
         focus_html += "</ol>"
 
     return f"""
@@ -30,11 +36,11 @@ def format_email_body(summary: PRSummary) -> str:
     <body style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #333;">
         <div style="background: #1a1a1a; padding: 16px 20px; border-radius: 8px; margin-bottom: 20px;">
             <h2 style="color: #fff; margin: 0;">CodeBrief Review</h2>
-            <p style="color: #aaa; margin: 4px 0 0;">{summary.repo} · PR #{summary.pr_number} · {len(summary.risks)} risks flagged</p>
+            <p style="color: #aaa; margin: 4px 0 0;">{escape(summary.repo)} - PR #{summary.pr_number} - {len(summary.risks)} risks flagged</p>
         </div>
 
         <h3>Summary</h3>
-        <p>{summary.summary}</p>
+        <p>{escape(summary.summary)}</p>
 
         {risks_html}
 
@@ -49,9 +55,9 @@ def format_email_body(summary: PRSummary) -> str:
 
 def deliver_email(summary: PRSummary, config: Config, recipient: str) -> None:
     msg = MIMEMultipart("alternative")
-    msg["From"] = config.email_sender
-    msg["To"] = recipient
-    msg["Subject"] = f"[CodeBrief] PR #{summary.pr_number} - {summary.title} ({len(summary.risks)} risks)"
+    msg["From"] = _safe_header(config.email_sender)
+    msg["To"] = _safe_header(recipient)
+    msg["Subject"] = _safe_header(f"[CodeBrief] PR #{summary.pr_number} - {summary.title} ({len(summary.risks)} risks)")
 
     body = format_email_body(summary)
     msg.attach(MIMEText(body, "html"))

@@ -90,23 +90,15 @@ def run_init() -> None:
     email_sender = ""
     email_password = ""
     email_smtp_host = ""
+    email_smtp_port = "465"
 
     setup_email = typer.confirm("Would you like to set up email delivery?")
     if setup_email:
         email_sender = typer.prompt("Gmail address")
         email_password = typer.prompt("Gmail app password", hide_input=True)
         email_smtp_host = typer.prompt("SMTP host", default="smtp.gmail.com")
+        email_smtp_port = typer.prompt("SMTP port", default="465")
         console.print("[green]✓[/green] Email settings saved")
-
-    # --- optional: slack ---
-    slack_webhook_url = ""
-    slack_channel = ""
-
-    setup_slack = typer.confirm("Would you like to set up Slack delivery?")
-    if setup_slack:
-        slack_webhook_url = typer.prompt("Slack webhook URL")
-        slack_channel = typer.prompt("Slack channel (e.g. #eng-reviews)")
-        console.print("[green]✓[/green] Slack settings saved")
 
     # --- write .env to ~/.codebrief/.env ---
     env_lines = [
@@ -132,14 +124,7 @@ def run_init() -> None:
             f"EMAIL_SENDER={email_sender}",
             f"EMAIL_PASSWORD={email_password}",
             f"EMAIL_SMTP_HOST={email_smtp_host}",
-        ]
-
-    if setup_slack:
-        env_lines += [
-            "",
-            "# Slack delivery",
-            f"SLACK_WEBHOOK_URL={slack_webhook_url}",
-            f"SLACK_CHANNEL={slack_channel}",
+            f"EMAIL_SMTP_PORT={email_smtp_port}",
         ]
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)

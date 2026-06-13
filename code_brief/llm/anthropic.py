@@ -3,7 +3,7 @@ import json
 import time
 from tenacity import retry, stop_after_attempt, wait_exponential
 from code_brief.config import Config
-from code_brief.models import PRSummary, Risk
+from code_brief.models import PRSummary, Risk, normalise_severity
 from code_brief.llm.prompt import SYSTEM_PROMPT, build_prompt
 from code_brief.llm.chunker import needs_chunking, needs_hierarchical_summarisation, chunk_files
 from code_brief.logger import get_logger
@@ -25,6 +25,22 @@ def clean_json(text: str) -> str:
     return cleaned.strip()
 
 
+def extract_response_text(response_json: dict) -> str:
+    content = response_json.get("content")
+    if not isinstance(content, list) or not content:
+        raise ValueError("API response did not include content")
+
+    first_content = content[0]
+    if not isinstance(first_content, dict):
+        raise ValueError("API response content item was not an object")
+
+    text = first_content.get("text")
+    if not isinstance(text, str):
+        raise ValueError("API response content text was missing")
+
+    return text
+
+
 def make_api_caller(config: Config, metrics=None):
     @retry(
         stop=stop_after_attempt(config.max_retries),
@@ -40,6 +56,7 @@ def make_api_caller(config: Config, metrics=None):
                     config.anthropic_endpoint,
                     headers={
                         "x-api-key": config.anthropic_api_key,
+                        "anthropic-version": "2023-06-01",
                         "Content-Type": "application/json"
                     },
                     json={
@@ -51,7 +68,7 @@ def make_api_caller(config: Config, metrics=None):
                 )
                 response.raise_for_status()
                 response_json = response.json()
-                text = response_json["content"][0]["text"]
+                text = extract_response_text(response_json)
 
                 # track token usage from API response
                 input_tokens = response_json.get("usage", {}).get("input_tokens", 0)
@@ -107,7 +124,7 @@ def parse_response(response_text: str, config: Config, pr_title: str = "") -> PR
 
     risks = [
         Risk(
-            severity=r.get("severity", "LOW"),
+            severity=normalise_severity(r.get("severity", "LOW")),
             confidence=r.get("confidence", 0),
             description=r.get("description", "No description provided")
         )
@@ -249,7 +266,7 @@ def call_claude(config: Config, files: list, pr_title: str = "", metrics=None) -
             chunk_summaries.append(data.get("summary", ""))
             all_risks.extend([
                 Risk(
-                    severity=r.get("severity", "LOW"),
+                    severity=normalise_severity(r.get("severity", "LOW")),
                     confidence=r.get("confidence", 0),
                     description=r.get("description", "No description provided")
                 )
