@@ -26,7 +26,7 @@ class Config:
     email_sender: str = ""
     email_password: str = ""
     email_smtp_host: str = ""
-    email_smtp_port: int = 587
+    email_smtp_port: int = 465
     slack_webhook_url: str = ""
     slack_channel: str = ""
 
