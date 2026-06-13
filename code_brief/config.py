@@ -1,8 +1,12 @@
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from pathlib import Path
 import os
 
-load_dotenv()
+CONFIG_DIR = Path.home() / ".codebrief"
+ENV_PATH = CONFIG_DIR / ".env"
+
+load_dotenv(dotenv_path=ENV_PATH)
 
 
 @dataclass
@@ -33,11 +37,20 @@ def load_config(repo: str, pr_number: int) -> Config:
     anthropic_endpoint = os.getenv("ANTHROPIC_ENDPOINT") or ""
 
     if not github_token:
-        raise ValueError("GITHUB_TOKEN is missing from your .env file")
+        raise ValueError(
+            f"GITHUB_TOKEN is missing. Run 'code-brief init' to set up CodeBrief.\n"
+            f"Config file expected at: {ENV_PATH}"
+        )
     if not anthropic_api_key:
-        raise ValueError("ANTHROPIC_API_KEY is missing from your .env file")
+        raise ValueError(
+            f"ANTHROPIC_API_KEY is missing. Run 'code-brief init' to set up CodeBrief.\n"
+            f"Config file expected at: {ENV_PATH}"
+        )
     if not anthropic_endpoint:
-        raise ValueError("ANTHROPIC_ENDPOINT is missing from your .env file")
+        raise ValueError(
+            f"ANTHROPIC_ENDPOINT is missing. Run 'code-brief init' to set up CodeBrief.\n"
+            f"Config file expected at: {ENV_PATH}"
+        )
 
     return Config(
         github_token=github_token,

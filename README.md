@@ -84,35 +84,30 @@ CodeBrief is structured as a Python pipeline with four logical layers:
 
 ## Installation
 
-**1. Clone the repository**
+CodeBrief is installed with [pipx](https://pipx.pypa.io/), which runs it in its own isolated environment automatically. No manual virtual environment setup is required.
+
+**1. Install pipx** (if not already installed)
 ```bash
-git clone https://github.com/your-username/CodeBrief.git
-cd CodeBrief
+pip install --user pipx
+pipx ensurepath
 ```
 
-**2. Create and activate a virtual environment**
+**2. Install CodeBrief**
 ```bash
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# Mac/Linux
-source .venv/bin/activate
+pipx install git+https://github.com/mml121/CodeBrief.git
 ```
 
-**3. Install dependencies**
+To install a specific version:
 ```bash
-pip install -r requirements.txt
-pip install -e .
+pipx install git+https://github.com/mml121/CodeBrief.git@v1.0.0
 ```
 
-**4. Run first-time setup**
+**3. Run first-time setup**
 ```bash
 code-brief init
 ```
 
-The `init` command walks you through setting up your API keys, validates each connection, and writes your `.env` file automatically. You can optionally configure email and Slack delivery during setup.
+The `init` command walks you through setting up your API keys, validates each connection, and writes your configuration automatically. You can optionally configure email and Slack delivery during setup.
 
 ---
 
@@ -220,7 +215,7 @@ The following file types are automatically filtered before processing:
 
 ## Configuration
 
-All configuration is managed via `.env`. Run `code-brief init` to generate this file automatically.
+All configuration is stored in `~/.codebrief/.env`. Run `code-brief init` to generate this file automatically - it works the same regardless of which directory you run `code-brief` from.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -240,6 +235,10 @@ All configuration is managed via `.env`. Run `code-brief init` to generate this 
 | `SLACK_WEBHOOK_URL` | For Slack | - | Slack incoming webhook URL |
 | `SLACK_CHANNEL` | For Slack | - | Slack channel name |
 
+### Logs
+
+Each run is logged to `~/.codebrief/logs/codebrief_YYYYMMDD.log`, with a separator between runs. Use `--verbose` to include debug-level detail.
+
 ---
 
 ## Output modes
@@ -253,6 +252,19 @@ All configuration is managed via `.env`. Run `code-brief init` to generate this 
 
 ---
 
+## Models
+
+| Model | Value | Recommended for |
+|---|---|---|
+| Claude 3.5 Sonnet | `claude-3-5-sonnet` | Production - best quality summaries |
+| Claude 3 Haiku | `claude-3-haiku` | Testing - faster and cheaper |
+
+Set `ANTHROPIC_MODEL` in `~/.codebrief/.env` to switch models. Defaults to `claude-3-haiku`.
+
+> **Note:** API usage is limited to 1,200 requests per month. Use Haiku for testing to conserve quota.
+
+---
+
 ## CLI flags
 
 | Flag | Default | Description |
@@ -262,6 +274,30 @@ All configuration is managed via `.env`. Run `code-brief init` to generate this 
 | `--output` | `terminal` | Output mode: `terminal`, `github`, `email`, `slack` |
 | `--dry-run` | `False` | Fetch diff without calling the LLM |
 | `--verbose` | `False` | Show all files, skipped files, and debug output |
+
+---
+
+## Developer setup
+
+If you want to modify CodeBrief itself rather than just use it, clone the repo and install in editable mode:
+
+```bash
+git clone https://github.com/mml121/CodeBrief.git
+cd CodeBrief
+
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# Mac/Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+pip install -e .
+```
+
+Configuration is still read from `~/.codebrief/.env` even in development. Run `code-brief init` once after installing to set it up.
 
 ---
 

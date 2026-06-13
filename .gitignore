@@ -18,6 +18,3 @@ __pycache__/
 # Windows
 Thumbs.db
 desktop.ini
-
-# Logs
-logs/

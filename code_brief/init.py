@@ -4,6 +4,7 @@ from github.GithubException import GithubException
 from rich.console import Console
 from rich.panel import Panel
 import typer
+from code_brief.config import CONFIG_DIR, ENV_PATH
 
 console = Console()
 
@@ -41,8 +42,9 @@ def validate_anthropic_connection(api_key: str, endpoint: str) -> tuple[bool, st
 
 
 def ask_with_retry(prompt: str, test_fn, success_msg: str) -> str:
+    hide = "key" in prompt.lower() or "password" in prompt.lower() or "token" in prompt.lower()
     while True:
-        value = typer.prompt(prompt, hide_input="key" in prompt.lower() or "password" in prompt.lower() or "token" in prompt.lower())
+        value = typer.prompt(prompt, hide_input=hide)
         if not value.strip():
             console.print("[red]✗ Value cannot be empty[/red]")
             continue
@@ -106,7 +108,7 @@ def run_init() -> None:
         slack_channel = typer.prompt("Slack channel (e.g. #eng-reviews)")
         console.print("[green]✓[/green] Slack settings saved")
 
-    # --- write .env ---
+    # --- write .env to ~/.codebrief/.env ---
     env_lines = [
         "# CodeBrief configuration",
         f"GITHUB_TOKEN={github_token}",
@@ -140,13 +142,14 @@ def run_init() -> None:
             f"SLACK_CHANNEL={slack_channel}",
         ]
 
-    with open(".env", "w") as f:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(ENV_PATH, "w") as f:
         f.write("\n".join(env_lines))
 
     console.print(Panel(
-        "[bold green]You're all set![/bold green]\n\n"
+        f"[bold green]You're all set![/bold green]\n\n"
+        f"Config saved to [cyan]{ENV_PATH}[/cyan]\n\n"
         "Try running:\n"
         "  [cyan]code-brief --pr 1 --repo your-org/your-repo[/cyan]",
         border_style="green"
     ))
-    
